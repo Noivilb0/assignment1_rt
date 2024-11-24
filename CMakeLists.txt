@@ -136,8 +136,11 @@ include_directories(
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
 # add_executable(${PROJECT_NAME}_node src/assignment1_rt_node.cpp)
-add_executable(ui_node src/UI.cpp)
-target_link_libraries(ui_node ${catkin_LIBRARIES})
+add_executable(UI src/UI.cpp)
+target_link_libraries(UI ${catkin_LIBRARIES})
+
+add_executable(distance src/distance.cpp)
+target_link_libraries(distance ${catkin_LIBRARIES})
 
 
 
