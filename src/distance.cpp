@@ -1,70 +1,86 @@
 #include "ros/ros.h"
-#include "std_msgs/Float32.h"
-#include "turtlesim/Pose.h"
 #include "geometry_msgs/Twist.h"
+#include "turtlesim/Pose.h"
+#include "std_msgs/Float32.h"
 #include <cmath>
 
-turtlesim::Pose turtle1_pose, turtle2_pose;
-ros::Publisher stop_pub;
+ros::Publisher cmd_pub;
+ros::Publisher distance_pub;
+ros::Subscriber pose_sub1, pose_sub2;
 
+turtlesim::Pose pose_turtle1;
+turtlesim::Pose pose_turtle2;
+
+double stop_distance = 0.5; // Distance threshold to stop turtles
+double boundary_limit = 10.0; // Boundary limit for x and y positions
+
+// Forward declaration of stopTurtle() function
+void stopTurtle();
+
+// Callback function for turtle1 pose
 void poseCallback1(const turtlesim::Pose::ConstPtr& msg) {
-    turtle1_pose = *msg;
+    pose_turtle1 = *msg;
 }
 
+// Callback function for turtle2 pose
 void poseCallback2(const turtlesim::Pose::ConstPtr& msg) {
-    turtle2_pose = *msg;
+    pose_turtle2 = *msg;
 }
 
-float calculateDistance() {
-    return std::sqrt(std::pow(turtle2_pose.x - turtle1_pose.x, 2) +
-                     std::pow(turtle2_pose.y - turtle1_pose.y, 2));
+// Function to stop turtle2
+void stopTurtle() {
+    geometry_msgs::Twist stop_msg;
+    cmd_pub.publish(stop_msg);  // Publish a zero velocity to stop the turtle
 }
 
-void stopTurtle(const std::string& turtle_name) {
-    geometry_msgs::Twist stop_cmd;
-    stop_cmd.linear.x = 0.0;
-    stop_cmd.angular.z = 0.0;
-    stop_pub = ros::NodeHandle().advertise<geometry_msgs::Twist>("/" + turtle_name + "/cmd_vel", 10);
-    stop_pub.publish(stop_cmd);
+// Function to check distance between turtles and boundaries
+void checkDistanceAndBoundaries() {
+    // Calculate the Euclidean distance between the two turtles
+    double distance = std::sqrt(std::pow(pose_turtle1.x - pose_turtle2.x, 2) +
+                                std::pow(pose_turtle1.y - pose_turtle2.y, 2));
+
+    // Publish the calculated distance on /turtle_distance topic
+    std_msgs::Float32 dist_msg;
+    dist_msg.data = distance;
+    distance_pub.publish(dist_msg);
+
+    // Check if the turtles are too close
+    if (distance < stop_distance) {
+        ROS_WARN("Turtles are too close! Stopping turtle2.");
+        stopTurtle();
+    }
+
+    // Check if the turtles are out of bounds
+    if (pose_turtle2.x > boundary_limit || pose_turtle2.x < 1.0 ||
+        pose_turtle2.y > boundary_limit || pose_turtle2.y < 1.0) {
+        ROS_WARN("Turtle2 is out of bounds! Stopping turtle2.");
+        stopTurtle();
+    }
 }
 
 int main(int argc, char** argv) {
     ros::init(argc, argv, "distance_node");
     ros::NodeHandle nh;
 
-    // Subscribers for turtle poses
-    ros::Subscriber sub1 = nh.subscribe("/turtle1/pose", 10, poseCallback1);
-    ros::Subscriber sub2 = nh.subscribe("/turtle2/pose", 10, poseCallback2);
+    // Create a publisher for turtle2's velocity
+    cmd_pub = nh.advertise<geometry_msgs::Twist>("/turtle2/cmd_vel", 10);
 
-    // Publisher for distance
-    ros::Publisher dist_pub = nh.advertise<std_msgs::Float32>("turtle_distance", 10);
+    // Create a publisher for the distance (std_msgs/Float32)
+    distance_pub = nh.advertise<std_msgs::Float32>("/turtle_distance", 10);
 
-    ros::Rate rate(10); // 10 Hz loop
-    const float threshold_distance = 1.0; // Threshold for stopping
-    const float boundary_limit = 10.0;
+    // Subscribe to the poses of both turtles
+    pose_sub1 = nh.subscribe("/turtle1/pose", 10, poseCallback1);
+    pose_sub2 = nh.subscribe("/turtle2/pose", 10, poseCallback2);
+
+    ros::Rate loop_rate(10); // Set loop rate to 10 Hz
 
     while (ros::ok()) {
-        ros::spinOnce();
+        ros::spinOnce();  // Process any incoming messages
 
-        float distance = calculateDistance();
-        std_msgs::Float32 distance_msg;
-        distance_msg.data = distance;
-        dist_pub.publish(distance_msg);
+        // Check the distance and boundaries
+        checkDistanceAndBoundaries();
 
-        // Stop turtles if conditions are met
-        if (distance < threshold_distance) {
-            ROS_WARN("Turtles are too close! Stopping moving turtle.");
-            stopTurtle("turtle2");
-        }
-        if (turtle1_pose.x > boundary_limit || turtle1_pose.x < 0.0 ||
-            turtle1_pose.y > boundary_limit || turtle1_pose.y < 0.0 ||
-            turtle2_pose.x > boundary_limit || turtle2_pose.x < 0.0 ||
-            turtle2_pose.y > boundary_limit || turtle2_pose.y < 0.0) {
-            ROS_WARN("Turtle near boundary! Stopping moving turtle.");
-            stopTurtle("turtle2");
-        }
-
-        rate.sleep();
+        loop_rate.sleep();
     }
 
     return 0;
