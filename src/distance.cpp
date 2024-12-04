@@ -27,7 +27,7 @@ public:
     }
 
     void spin() {
-        ros::Rate rate(1);
+        ros::Rate rate(100);
         while (ros::ok()) {
             publishDistance();
             checkProximity();
