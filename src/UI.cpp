@@ -33,8 +33,8 @@ int main(int argc, char** argv) {
     // Spawn turtle2
     ros::ServiceClient spawn_client = nh.serviceClient<turtlesim::Spawn>("spawn");
     turtlesim::Spawn spawn_srv;
-    spawn_srv.request.x = 5.0;
-    spawn_srv.request.y = 5.0;
+    spawn_srv.request.x = 2;
+    spawn_srv.request.y = 2;
     spawn_srv.request.name = "turtle2";
 
     if (spawn_client.call(spawn_srv)) {
